@@ -33,6 +33,10 @@ find_package(GLIB REQUIRED)
 find_package(WPEWebKit REQUIRED)
 pkg_check_modules(WPEBackend wpe-0.2)
 
+link_directories(${WPEBackend_LIBRARY_DIRS}
+                 ${GLIB_LIBRARY_DIRS}
+                 ${WPE_WEBKIT_LIBRARY_DIRS})
+
 add_library(${MODULE_NAME} SHARED  
     Module.cpp
     WebKitBrowser.cpp
