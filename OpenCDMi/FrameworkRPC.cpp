@@ -1264,10 +1264,7 @@ namespace Plugin {
 
                     //now handle the configiguration
                     const string configuration(index.Current().Configuration.Value());
-                    if (configuration.empty() == false && factory != factories.end()) {
-
-                        factory->second.Factory->SystemConfig(configuration);
-                    }
+                    factory->second.Factory->SystemConfig(service, configuration);
                 }
             }
 

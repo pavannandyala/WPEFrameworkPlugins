@@ -5,9 +5,9 @@ find_package(ocdm REQUIRED)
 find_package(${NAMESPACE}Plugins REQUIRED)
 
 # TODO: set PLUGIN_OPENCDMI_PLAYREADY_READ_DIR default value to empty when flag will be provided from the BR
-set(PLUGIN_OPENCDMI_PLAYREADY_READ_DIR "/root/Netflix/dpi/playready" CACHE STRING "Playready read-dir")
-set(PLUGIN_OPENCDMI_PLAYREADY_STORE_LOCATION "/root/Netflix/dpi/playready/storage/drmstore" CACHE STRING "Playready store-location")
-set(PLUGIN_OPENCDMI_PLAYREADY_HOME_PATH "/root" CACHE STRING "Playready HOME path")
+#set(PLUGIN_OPENCDMI_PLAYREADY_READ_DIR "/root/Netflix/dpi/playready" CACHE STRING "Playready read-dir")
+#set(PLUGIN_OPENCDMI_PLAYREADY_STORE_LOCATION "/root/Netflix/dpi/playready/storage/drmstore" CACHE STRING "Playready store-location")
+#set(PLUGIN_OPENCDMI_PLAYREADY_HOME_PATH "/root" CACHE STRING "Playready HOME path")
 
 add_library(${MODULE_NAME} SHARED 
         OCDM.cpp
