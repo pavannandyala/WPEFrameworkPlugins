@@ -8,6 +8,7 @@ namespace WPEFramework {
 namespace Plugin {
 
     static char Locator[] = _T("/dev/input");
+    static const int ABS_MULTIPLIER_PRECISSION = 12;
 
     class LinuxDevice : public Exchange::IKeyProducer, Core::Thread {
     private:
@@ -21,6 +22,13 @@ namespace Plugin {
             , _monitor(nullptr)
             , _update(-1)
             , _callback(nullptr)
+            , _abs_x(0)
+            , _abs_y(0)
+            , _abs_x_multiplier(0)
+            , _abs_y_multiplier(0)
+            , _have_abs(false)
+            , _touch_button(-1)
+
         {
             _pipe[0] = -1;
             _pipe[1] = -1;
@@ -47,6 +55,9 @@ namespace Plugin {
                 udev_unref(udev);
                 Remotes::RemoteAdministrator::Instance().Announce(*this);
             }
+
+            //uint16_t abs_max_x = 3520; // todo: pick this up from the driver
+            //uint16_t abs_max_y = 1984;
         }
         virtual ~LinuxDevice()
         {
@@ -148,7 +159,21 @@ namespace Plugin {
                     TRACE(Trace::Information, (_T("Opening input device: %s"), entry.Name().c_str()));
 
                     if (entry.Open(true) == true) {
-                        _devices.push_back(entry.DuplicateHandle());
+                        int fd = entry.DuplicateHandle();
+                        _devices.push_back(fd);
+
+                        // For now assume only one touchscreen is attached...
+                        struct input_absinfo absinfo;
+                        if (_abs_x_multiplier == 0) {
+                            if (ioctl(fd, EVIOCGABS(ABS_X), &absinfo) == 0) {
+                                _abs_x_multiplier = ((1 << 16) << ABS_MULTIPLIER_PRECISSION) / absinfo.maximum;
+                            }
+                        }
+                        if (_abs_y_multiplier == 0) {
+                            if (ioctl(fd, EVIOCGABS(ABS_Y), &absinfo) == 0) {
+                                _abs_y_multiplier = ((1 << 16) << ABS_MULTIPLIER_PRECISSION) / absinfo.maximum;
+                            }
+                        }
                     }
                 }
             }
@@ -169,7 +194,6 @@ namespace Plugin {
         }
         virtual uint32_t Worker()
         {
-
             while (IsRunning() == true) {
                 fd_set readset;
                 FD_ZERO(&readset);
@@ -237,16 +261,65 @@ namespace Plugin {
                 while (result >= static_cast<int>(sizeof(input_event))) {
 
                     ASSERT(index < static_cast<int>((sizeof(entry) / sizeof(input_event))));
+                    const uint16_t& code = entry[index].code;
+                    const uint16_t& type = entry[index].type;
+                    const int32_t& value = entry[index].value;
 
-                    // If it is a KEY and it is *NOT* a repeat, send it..
-                    // Repeat gets constructed by the framework anyway.
-                    if ((entry[index].type == EV_KEY) && (entry[index].value != 2)) {
-
-                        const uint16_t code = entry[index].code;
-                        const bool pressed = entry[index].value != 0;
-                        TRACE(Trace::Information, (_T("Sending pressed: %s, code: 0x%04X"), (pressed ? _T("true") : _T("false")), code));
-                        _callback->KeyEvent(pressed, code, Name());
+                    switch (type)
+                    {
+                    case EV_KEY:
+                        // If it is a KEY and it is *NOT* a repeat, send it..
+                        // Repeat gets constructed by the framework anyway.
+                        if (value != 2) {
+                            const bool pressed = (value != 0);
+                            if ((code >= BTN_LEFT) && (code <= BTN_TASK)) {
+                                _callback->PointerButtonEvent(pressed, (code - BTN_LEFT));
+                            } else if (code == BTN_TOUCH) {
+                                // single-touch only, or first/last touch in multi-touch
+                                _touch_button = (pressed + 1);
+                            } else {
+                                _callback->KeyEvent(pressed, code, Name());
+                            }
+                        }
+                        break;
+                    case EV_REL: // relative axis value changes (e.g. mice, touchpads, trackballs...)
+                        switch(code)
+                        {
+                        case REL_X:
+                            _callback->PointerMotionEvent(value, 0);
+                            break;
+                        case REL_Y:
+                            _callback->PointerMotionEvent(0, value);
+                            break;
+                        case REL_WHEEL:
+                            _callback->AxisEvent(0, value);
+                            break;
+                        case REL_HWHEEL:
+                            _callback->AxisEvent(value, 0);
+                            break;
+                        }
+                        break;
+                    case EV_ABS: // absolute axis value changes (e.g. touch screens, drawing tablets...)
+                        switch(code)
+                        {
+                        case ABS_X:
+                            _abs_x = static_cast<uint16_t>((_abs_x_multiplier * value) >> ABS_MULTIPLIER_PRECISSION);
+                            _have_abs = true;
+                            break;
+                        case ABS_Y:
+                            _abs_y = static_cast<uint16_t>((_abs_y_multiplier * value) >> ABS_MULTIPLIER_PRECISSION);
+                            _have_abs = true;
+                        }
+                        break;
+                    case EV_SYN:
+                        if ((_have_abs == true) || (_touch_button != 0)) {
+                            _have_abs = false;
+                            _callback->TouchEvent(0, _touch_button, _abs_x, _abs_y);
+                        }
+                        _touch_button = 0;
+                        break;
                     }
+
                     index++;
                     result -= sizeof(input_event);
                 }
@@ -261,9 +334,16 @@ namespace Plugin {
         udev_monitor* _monitor;
         int _update;
         Exchange::IKeyHandler* _callback;
+        uint16_t _abs_x;
+        uint16_t _abs_y;
+        uint32_t _abs_x_multiplier;
+        uint32_t _abs_y_multiplier;
+        bool _have_abs;
+        uint8_t _touch_button;
         static LinuxDevice* _singleton;
     };
 
     /* static */ LinuxDevice* LinuxDevice::_singleton = Core::Service<LinuxDevice>::Create<LinuxDevice>();
 }
 }
+

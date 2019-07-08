@@ -207,7 +207,11 @@ namespace Plugin {
         // Whenever a key is pressed or release, let this plugin now, it will take the proper arrangements and timings
         // to announce this key event to the linux system. Repeat event is triggered by the watchdog implementation
         // in this plugin. No need to signal this.
-        virtual uint32_t KeyEvent(const bool pressed, const uint32_t code, const string& table) override;
+        uint32_t KeyEvent(const bool pressed, const uint32_t code, const string& mapName) override;
+        uint32_t AxisEvent(const int16_t x, const int16_t y) override;
+        uint32_t PointerButtonEvent(const bool pressed, const uint8_t button) override;
+        uint32_t PointerMotionEvent(const int16_t x, const int16_t y) override;
+        uint32_t TouchEvent(const uint8_t index, const uint16_t state, const uint16_t x, const uint16_t y) override;
 
         // Next to handling keys, we also have a number of devices can produce keys. All these key producers have a name.
         // Using the next interface it is possible to retrieve the KeyProducers implemented by ths plugin.
@@ -263,7 +267,9 @@ namespace Plugin {
     private:
         uint32_t _skipURL;
         std::list<string> _virtualDevices;
-        PluginHost::VirtualInput* _inputHandler;
+        PluginHost::VirtualInput* _keyHandler;
+        PluginHost::VirtualInput* _mouseHandler;
+        PluginHost::VirtualInput* _touchHandler;
         string _persistentPath;
     };
 }
